@@ -32,10 +32,7 @@ table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:ta
 <nav id="nav"></nav>
 <script>
 const API='https://site.api.espn.com/apis/site/v2/sports/',API2='https://site.api.espn.com/apis/v2/sports/';
-const L=[['nfl','NFL','football/nfl','team','🏈'],['nba','NBA','basketball/nba','team','🏀'],['mlb','MLB','baseball/mlb','team','⚾'],['nhl','NHL','hockey/nhl','team','🏒'],
-['wnba','WNBA','basketball/wnba','team','🏀'],['cfb','NCAAF','football/college-football','team','🏈'],['cbb','NCAAM','basketball/mens-college-basketball','team','🏀'],
-['epl','Premier League','soccer/eng.1','team','⚽'],['ucl','Champions League','soccer/uefa.champions','team','⚽'],['laliga','La Liga','soccer/esp.1','team','⚽'],['mls','MLS','soccer/usa.1','team','⚽'],
-['f1','F1','racing/f1','race','🏎️'],['ufc','UFC','mma/ufc','fight','🥊'],['atp','ATP','tennis/atp','tennis','🎾'],['wta','WTA','tennis/wta','tennis','🎾'],['pga','PGA Tour','golf/pga','golf','⛳']]
+const L=[['nfl','NFL','football/nfl','team','🏈'],['mlb','MLB','baseball/mlb','team','⚾'],['nba','NBA','basketball/nba','team','🏀'],['cfb','NCAAF','football/college-football','team','🏈'],['cbb','NCAAM','basketball/mens-college-basketball','team','🏀']]
 .map(([id,name,path,kind,em])=>({id,name,path,kind,em}));const LG=Object.fromEntries(L.map(l=>[l.id,l]));
 const ls=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},ss=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const S={tab:ls('tab','mine'),lg:ls('lg','nfl'),date:null,favs:ls('favs',[]),stale:null,live:false};
@@ -51,24 +48,15 @@ const isFav=(lg,id)=>S.favs.some(f=>f.lg===lg&&f.id===String(id));
 function toggleFav(lg,t){const i=S.favs.findIndex(f=>f.lg===lg&&f.id===String(t.id));if(i>=0)S.favs.splice(i,1);else S.favs.push({lg,id:String(t.id),name:t.displayName||t.name,logo:t.logo||(t.logos&&t.logos[0]&&t.logos[0].href)||''});ss('favs',S.favs)}
 // ---- normalize scoreboard events into cards
 function norm(lg,ev){const st=ev.status||{},ty=st.type||{};const out=[];
- if(lg.kind==='team'){const c=ev.competitions[0],cs=c.status||st;out.push({lg,ev,id:ev.id,kind:'team',state:(cs.type||ty).state,detail:(cs.type||ty).shortDetail,date:ev.date,
+ const c=ev.competitions[0],cs=c.status||st;out.push({lg,ev,id:ev.id,kind:'team',state:(cs.type||ty).state,detail:(cs.type||ty).shortDetail,date:ev.date,
   teams:c.competitors.slice().sort((a,b)=>a.homeAway==='away'?-1:1).map(k=>({id:k.team.id,name:k.team.shortDisplayName||k.team.displayName,full:k.team.displayName,logo:k.team.logo,score:k.score,win:k.winner,rec:k.records&&k.records[0]&&k.records[0].summary,rank:k.curatedRank&&k.curatedRank.current<99?k.curatedRank.current:''})),
   odds:c.odds&&c.odds[0]&&c.odds[0].details,tv:c.broadcasts&&c.broadcasts[0]&&c.broadcasts[0].names&&c.broadcasts[0].names.join('/'),note:c.notes&&c.notes[0]&&c.notes[0].headline});return out}
- const comps=(ev.competitions||[]).concat(...(ev.groupings||[]).filter(g=>/singles/i.test(g.grouping.displayName)).map(g=>g.competitions));
- if(lg.kind==='fight'||lg.kind==='tennis'){comps.filter(c=>c.competitors&&c.competitors.length===2).slice().reverse().forEach(c=>{const t=(c.status||st).type||ty;
-   out.push({lg,ev,id:ev.id+'-'+c.id,kind:lg.kind,state:t.state,detail:t.shortDetail||t.detail,date:c.date||ev.date,note:(c.type&&(c.type.abbreviation||c.type.text))+' · '+ev.name,
-   teams:c.competitors.map(k=>{const a=k.athlete||k.team||{};return{id:a.id,name:a.displayName||a.shortName,logo:a.flag&&a.flag.href,win:k.winner,rec:k.records&&k.records[0]&&k.records[0].summary,score:(k.linescores||[]).map(x=>x.value).join(' ')}})})});return out}
- // race / golf: event card with leaderboard
- const c=comps.filter(c=>c.competitors&&c.competitors.length).pop()||comps[0]||{};const t=(c.status||st).type||ty;
- out.push({lg,ev,id:ev.id,kind:lg.kind,state:t.state||ty.state,detail:t.shortDetail||t.detail||ty.shortDetail,date:ev.date,note:(c.type&&c.type.abbreviation?c.type.abbreviation+' · ':'')+(ev.circuit?ev.circuit.fullName:''),title:ev.name,
-  board:(c.competitors||[]).slice().sort((a,b)=>(a.order||99)-(b.order||99)).slice(0,10).map(k=>{const a=k.athlete||{};return{pos:k.order||'',name:a.displayName||a.shortName,score:k.score&&typeof k.score==='object'?k.score.displayValue:k.score,flag:a.flag&&a.flag.href}})});return out}
 function stHTML(g){const live=g.state==='in';return `<div class="st"><span class="${live?'live':''}">${live?'● ':''}${esc(g.state==='pre'?dt(g.date)+' · '+tm(g.date):g.detail)}</span><span>${esc(g.tv||g.odds||'')}</span></div>`}
 function gameHTML(g){let h=`<div class="card game" data-g="${esc(g.lg.id)}|${esc(g.id)}">`+stHTML(g);
- if(g.teams){g.teams.forEach(t=>{const lose=g.state==='post'&&g.teams.some(o=>o.win)&&!t.win;h+=`<div class="row ${lose?'lose':''}">${t.logo?`<img loading="lazy" src="${esc(t.logo)}" alt="">`:''}<span class="n">${t.rank?`<span class="mut">${t.rank}</span> `:''}${esc(t.name)}${isFav(g.lg.id,t.id)?' ⭐':''}<span class="rec">${esc(t.rec||'')}</span></span><span class="s">${g.state==='pre'?'':esc(t.score??'')}</span></div>`})}
- else{h+=`<div style="font-weight:600">${esc(g.title)}</div>`;if(g.board.length&&g.state!=='pre')h+=g.board.slice(0,3).map(b=>`<div class="row"><span class="mut">${esc(b.pos)}</span><span class="n">${esc(b.name)}</span><span class="s">${esc(b.score||'')}</span></div>`).join('')}
+ g.teams.forEach(t=>{const lose=g.state==='post'&&g.teams.some(o=>o.win)&&!t.win;h+=`<div class="row ${lose?'lose':''}">${t.logo?`<img loading="lazy" src="${esc(t.logo)}" alt="">`:''}<span class="n">${t.rank?`<span class="mut">${t.rank}</span> `:''}${esc(t.name)}${isFav(g.lg.id,t.id)?' ⭐':''}<span class="rec">${esc(t.rec||'')}</span></span><span class="s">${g.state==='pre'?'':esc(t.score??'')}</span></div>`})
  if(g.note)h+=`<div class="mut" style="margin-top:3px">${esc(g.note)}</div>`;return h+'</div>'}
 const order={in:0,pre:1,post:2};
-async function scoreboard(lg,date){const d=await getJ(API+lg.path+'/scoreboard'+(date?'?dates='+date:''),10e3);let gs=[].concat(...(d.events||[]).map(e=>norm(lg,e)));if(lg.kind==='tennis'){const day=date||ymd(new Date());const t=gs.filter(g=>g.state==='in'||ymd(new Date(g.date))===day);gs=(t.length?t:gs.filter(g=>g.state==='post').sort((a,b)=>new Date(b.date)-new Date(a.date))).slice(0,40)}return gs}
+async function scoreboard(lg,date){const d=await getJ(API+lg.path+'/scoreboard'+(date?'?dates='+date:''),10e3);let gs=[].concat(...(d.events||[]).map(e=>norm(lg,e)));return gs}
 const GAMES={};
 // ---- views
 async function vScores(){const lg=LG[S.lg];const gs=await scoreboard(lg,S.date);gs.forEach(g=>GAMES[g.lg.id+'|'+g.id]=g);S.live=gs.some(g=>g.state==='in');
@@ -86,19 +74,16 @@ function newsHTML(a){const img=a.images&&a.images[0]&&a.images[0].url,href=a.lin
  return `<a class="card news" href="${esc(href||'#')}" target="_blank" rel="noopener">${img?`<img loading="lazy" src="${esc(img)}" alt="">`:''}<div><h3>${esc(a.headline)}</h3><div class="mut">${a.published?ago(new Date(a.published)):''}${a.type?' · '+esc(a.type):''}</div></div></a>`}
 async function vNews(){const lg=LG[S.lg];const n=await getJ(API+lg.path+'/news?limit=30',60e3);const a=n.articles||[];return a.length?a.map(newsHTML).join(''):'<div class="empty">No headlines.</div>'}
 function groups(n,acc=[]){if(n.standings&&n.standings.entries)acc.push(n);(n.children||[]).forEach(c=>groups(c,acc));return acc}
-async function vStand(){const lg=LG[S.lg];if(lg.kind!=='team')return `<div class="empty">Standings aren't available for ${esc(lg.name)}.</div>`;
+async function vStand(){const lg=LG[S.lg];
  const d=await getJ(API2+lg.path+'/standings',300e3);const gs=groups(d);if(!gs.length)return '<div class="empty">No standings available.</div>';
- const soccer=lg.path.startsWith('soccer');const cols=soccer?[['gamesPlayed','GP'],['wins','W'],['ties','D'],['losses','L'],['pointDifferential','GD'],['points','Pts']]:lg.id==='nhl'?[['wins','W'],['losses','L'],['otLosses','OT'],['points','Pts']]:[['wins','W'],['losses','L'],['winPercent','PCT'],['gamesBehind','GB']];
+ const cols=[['wins','W'],['losses','L'],['winPercent','PCT'],['gamesBehind','GB']];
  return gs.map(g=>{const es=g.standings.entries.slice();const sv=(e,n)=>{const s=e.stats.find(x=>x.name===n||x.type===n.toLowerCase());return s?s.displayValue:''};
-  const key=soccer||lg.id==='nhl'?'points':'winPercent';es.sort((a,b)=>{const f=e=>{const s=e.stats.find(x=>x.name===key);return s?s.value:0};return f(b)-f(a)});
+  const key='winPercent';es.sort((a,b)=>{const f=e=>{const s=e.stats.find(x=>x.name===key);return s?s.value:0};return f(b)-f(a)});
   return `<div class="sec">${esc(g.name)}</div><div class="card" style="padding:4px 8px"><table><tr><th>Team</th>${cols.map(c=>`<th>${c[1]}</th>`).join('')}<th></th></tr>${es.map(e=>`<tr><td>${e.team.logos&&e.team.logos[0]?`<img src="${esc(e.team.logos[0].href)}" style="width:18px;height:18px;vertical-align:-4px"> `:''}${esc(e.team.shortDisplayName||e.team.displayName)}</td>${cols.map(c=>`<td>${esc(sv(e,c[0]))}</td>`).join('')}<td><button class="star" data-fav='${esc(JSON.stringify({lg:lg.id,id:e.team.id,displayName:e.team.displayName,logo:e.team.logos&&e.team.logos[0]&&e.team.logos[0].href}))}'>${isFav(lg.id,e.team.id)?'★':'☆'}</button></td></tr>`).join('')}</table></div>`}).join('')}
 // ---- detail sheet
 async function detail(key){const g=GAMES[key];if(!g)return;const box=document.getElementById('sheetIn');document.getElementById('sheet').classList.add('on');
  let h=`<button class="x" onclick="closeSheet()">✕</button><div class="mut">${esc(g.lg.em+' '+g.lg.name)}</div>`;
- if(!g.teams||g.kind!=='team'){h+=`<h2 style="margin:6px 0">${esc(g.title||g.teams.map(t=>t.name).join(' vs '))}</h2>`+stHTML(g);
-  if(g.board)h+=g.board.length?`<table class="lb">${g.board.map(b=>`<tr><td>${esc(b.pos)}</td><td>${esc(b.name)}</td><td>${esc(b.score||'')}</td></tr>`).join('')}</table>`:'<div class="mut">Leaderboard appears once the session starts.</div>';
-  else h+=g.teams.map(t=>`<div class="row"><span class="n">${t.win?'🏆 ':''}${esc(t.name)} <span class="rec">${esc(t.rec||'')}</span></span><span class="s">${esc(t.score||'')}</span></div>`).join('');
-  const l=g.ev.links&&g.ev.links.find(x=>x.href);if(l)h+=`<p><a style="color:var(--acc)" href="${esc(l.href)}" target="_blank" rel="noopener">Full results on ESPN ↗</a></p>`;box.innerHTML=h;return}
+
  box.innerHTML=h+'<div class="empty">Loading…</div>';let s;try{s=await getJ(API+g.lg.path+'/summary?event='+g.ev.id,10e3)}catch(e){box.innerHTML=h+'<div class="empty">Couldn\'t load game details. Check your connection.</div>';return}
  const c=s.header&&s.header.competitions[0]||{};const cps=(c.competitors||[]).slice().sort((a,b)=>a.homeAway==='away'?-1:1);
  h+=stHTML(g);h+=cps.map(k=>`<div class="row"><img src="${esc(k.team.logos&&k.team.logos[0]&&k.team.logos[0].href||'')}" alt=""><span class="n">${esc(k.team.displayName)}</span><span class="s">${esc(k.score??'')}</span><button class="star" data-fav='${esc(JSON.stringify({lg:g.lg.id,id:k.team.id,displayName:k.team.displayName,logo:k.team.logos&&k.team.logos[0]&&k.team.logos[0].href}))}'>${isFav(g.lg.id,k.team.id)?'★':'☆'}</button></div>`).join('');
@@ -111,7 +96,7 @@ async function detail(key){const g=GAMES[key];if(!g)return;const box=document.ge
 function closeSheet(){document.getElementById('sheet').classList.remove('on')}
 // ---- shell
 const TABS=[['mine','⭐','My Teams'],['scores','🏟️','Scores'],['news','📰','News'],['stand','📊','Standings']];
-function header(){const chips=S.tab==='mine'?'':`<div class="chips" id="lgs">${L.filter(l=>S.tab!=='stand'||l.kind==='team').map(l=>`<button class="chip ${l.id===S.lg?'on':''}" data-lg="${l.id}">${l.em} ${esc(l.name)}</button>`).join('')}</div>`;
+function header(){const chips=S.tab==='mine'?'':`<div class="chips" id="lgs">${L.map(l=>`<button class="chip ${l.id===S.lg?'on':''}" data-lg="${l.id}">${l.em} ${esc(l.name)}</button>`).join('')}</div>`;
  const d=S.date?new Date(+S.date.slice(0,4),+S.date.slice(4,6)-1,+S.date.slice(6)):new Date();
  const bar=S.tab==='scores'?`<div class="bar"><button data-d="-1">‹</button><input type="date" id="dp" value="${d.toISOString?ymd(d).replace(/(\d{4})(\d\d)(\d\d)/,'$1-$2-$3'):''}"><button data-d="1">›</button><button data-d="0">Today</button></div>`:'';
  document.getElementById('hdr').innerHTML=chips+bar;document.getElementById('ttl').textContent=TABS.find(t=>t[0]===S.tab)[2];
@@ -130,6 +115,6 @@ document.addEventListener('click',e=>{const t=e.target.closest('[data-tab],[data
  else if(t.dataset.fav){const f=JSON.parse(t.dataset.fav);toggleFav(f.lg,f);t.textContent=isFav(f.lg,f.id)?'★':'☆';if(S.tab!=='stand')render(true)}
  else if(t.dataset.g)detail(t.dataset.g)});
 document.addEventListener('change',e=>{if(e.target.id==='dp'&&e.target.value){S.date=e.target.value.replace(/-/g,'');render()}});
-if(!LG[S.lg])S.lg='nfl';render();
+if(!LG[S.lg])S.lg='nfl';S.favs=S.favs.filter(f=>LG[f.lg]);render();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>
