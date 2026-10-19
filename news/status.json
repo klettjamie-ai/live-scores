@@ -1,0 +1,45 @@
+{
+ "updated": "2026-10-19T14:16:01.113888+00:00",
+ "sources": {
+  "nfl": {
+   "CBS Sports": 36,
+   "Yahoo Sports": 40,
+   "Fox Sports": 15,
+   "ProFootballTalk": 30,
+   "The Athletic": 40,
+   "SB Nation": 10
+  },
+  "mlb": {
+   "CBS Sports": 36,
+   "Yahoo Sports": 40,
+   "Fox Sports": 19,
+   "NBC Sports": 4,
+   "The Athletic": 40,
+   "SB Nation": 10,
+   "MLB.com": 25
+  },
+  "nba": {
+   "CBS Sports": 36,
+   "Yahoo Sports": 40,
+   "Fox Sports": 16,
+   "The Athletic": 40,
+   "SB Nation": 10
+  },
+  "cfb": {
+   "CBS Sports": 36,
+   "Yahoo Sports": 40,
+   "Fox Sports": 13,
+   "The Athletic": 40,
+   "SB Nation": 10,
+   "NCAA.com": 20
+  },
+  "cbb": {
+   "CBS Sports": 36,
+   "Yahoo Sports": 40,
+   "Fox Sports": 30,
+   "The Athletic": 40,
+   "SB Nation": 10,
+   "NCAA.com": 20
+  }
+ }
+}
