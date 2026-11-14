@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-14T16:57:14.165376+00:00",
+ "updated": "2026-11-14T17:36:09.135999+00:00",
  "sources": {
   "nfl": {
    "CBS Sports": 36,
@@ -28,7 +28,7 @@
   "cfb": {
    "CBS Sports": 36,
    "Yahoo Sports": 40,
-   "Fox Sports": 25,
+   "Fox Sports": 0,
    "The Athletic": 40,
    "SB Nation": 10,
    "NCAA.com": 20
