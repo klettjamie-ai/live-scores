@@ -34,8 +34,10 @@ table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:ta
 const WEB='https://site.web.api.espn.com/apis/common/v3/sports/',API='https://site.api.espn.com/apis/site/v2/sports/',API2='https://site.api.espn.com/apis/v2/sports/';
 const L=[['nfl','NFL','football/nfl','team','🏈'],['mlb','MLB','baseball/mlb','team','⚾'],['nba','NBA','basketball/nba','team','🏀'],['cfb','NCAAF','football/college-football','team','🏈'],['cbb','NCAAM','basketball/mens-college-basketball','team','🏀']]
 .map(([id,name,path,kind,em])=>({id,name,path,kind,em}));const LG=Object.fromEntries(L.map(l=>[l.id,l]));
+const CONF={cfb:[['top25','Top 25'],['80','All FBS'],['81','All FCS'],['151','American'],['1','ACC'],['4','Big 12'],['5','Big Ten'],['12','CUSA'],['18','FBS Indep.'],['15','MAC'],['17','Mountain West'],['9','Pac-12'],['8','SEC'],['37','Sun Belt'],['20','Big Sky'],['48','CAA'],['32','FCS Indep.'],['22','Ivy'],['24','MEAC'],['21','MVFC'],['25','NEC'],['179','OVC'],['27','Patriot'],['28','Pioneer'],['29','Southern'],['30','Southland'],['31','SWAC'],['177','UAC']],cbb:[['top25','Top 25'],['50','All D-I'],['1','Am. East'],['62','American'],['3','A-10'],['2','ACC'],['46','ASUN'],['8','Big 12'],['4','Big East'],['5','Big Sky'],['6','Big South'],['7','Big Ten'],['9','Big West'],['10','CAA'],['11','CUSA'],['45','Horizon'],['12','Ivy'],['13','MAAC'],['14','MAC'],['16','MEAC'],['18','MVC'],['44','Mountain West'],['19','NEC'],['20','OVC'],['21','Pac-12'],['22','Patriot'],['23','SEC'],['24','SoCon'],['25','Southland'],['26','SWAC'],['49','Summit'],['27','Sun Belt'],['30','UAC'],['29','WCC']]};
+const confSel=lg=>(S.conf&&S.conf[lg.id])||'top25';
 const ls=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},ss=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
-const S={sv:ls('sv','Division'),tab:ls('tab','mine'),lg:ls('lg','nfl'),date:null,favs:ls('favs',[]),stale:null,live:false};
+const S={sv:ls('sv','Division'),tab:ls('tab','mine'),lg:ls('lg','nfl'),date:null,favs:ls('favs',[]),conf:ls('conf',{cfb:'top25',cbb:'top25'}),stale:null,live:false};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ymd=d=>d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
 const tm=s=>new Date(s).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}),dt=s=>new Date(s).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
@@ -56,7 +58,8 @@ function gameHTML(g){let h=`<div class="card game" data-g="${esc(g.lg.id)}|${esc
  g.teams.forEach(t=>{const lose=g.state==='post'&&g.teams.some(o=>o.win)&&!t.win;h+=`<div class="row ${lose?'lose':''}">${t.logo?`<img loading="lazy" src="${esc(t.logo)}" alt="">`:''}<span class="n">${t.rank?`<span class="mut">${t.rank}</span> `:''}${esc(t.name)}${isFav(g.lg.id,t.id)?' ⭐':''}<span class="rec">${esc(t.rec||'')}</span></span><span class="s">${g.state==='pre'?'':esc(t.score??'')}</span></div>`})
  if(g.note)h+=`<div class="mut" style="margin-top:3px">${esc(g.note)}</div>`;return h+'</div>'}
 const order={in:0,pre:1,post:2};
-async function scoreboard(lg,date){const d=await getJ(API+lg.path+'/scoreboard'+(date?'?dates='+date:''),10e3);let gs=[].concat(...(d.events||[]).map(e=>norm(lg,e)));return gs}
+async function scoreboard(lg,date,opts){opts=opts||{};const q=[];if(date)q.push('dates='+date);let filterTop=false;if(opts.group!=null){if(opts.group)q.push('groups='+opts.group)}else if(lg.id==='cfb'||lg.id==='cbb'){const c=confSel(lg);if(c==='top25'){q.push('groups='+(lg.id==='cfb'?'80':'50'));filterTop=true}else q.push('groups='+c)}q.push('limit=400');const d=await getJ(API+lg.path+'/scoreboard?'+q.join('&'),10e3);let gs=[].concat(...(d.events||[]).map(e=>norm(lg,e)));if(filterTop)gs=gs.filter(g=>g.teams.some(t=>t.rank));return gs}
+async function scoreboardFav(lg,date){if(lg.id==='cfb'){const[a,b]=await Promise.all([scoreboard(lg,date,{group:'80'}),scoreboard(lg,date,{group:'81'})]);const s=new Set();return a.concat(b).filter(g=>s.has(g.id)?false:s.add(g.id))}if(lg.id==='cbb')return scoreboard(lg,date,{group:'50'});return scoreboard(lg,date)}
 const GAMES={};
 // ---- views
 async function vScores(){const lg=LG[S.lg];const gs=await scoreboard(lg,S.date);gs.forEach(g=>GAMES[g.lg.id+'|'+g.id]=g);S.live=gs.some(g=>g.state==='in');
@@ -64,7 +67,7 @@ async function vScores(){const lg=LG[S.lg];const gs=await scoreboard(lg,S.date);
  return gs.length?gs.map(gameHTML).join(''):`<div class="empty">No ${esc(lg.name)} events on this date.</div>`}
 async function vMine(){if(!S.favs.length)return `<div class="empty">⭐ No favorite teams yet.<br><br>Open any game or the Standings tab and tap the star next to a team to pin it here.</div>`;
  const lgs=[...new Set(S.favs.map(f=>f.lg))];let h='';const all=[],news=[];
- await Promise.all(lgs.map(async id=>{const lg=LG[id];try{const gs=await scoreboard(lg,null);gs.forEach(g=>{GAMES[g.lg.id+'|'+g.id]=g;if(g.teams&&g.teams.some(t=>isFav(id,t.id)))all.push(g)})}catch(e){}
+ await Promise.all(lgs.map(async id=>{const lg=LG[id];try{const gs=await scoreboardFav(lg,null);gs.forEach(g=>{GAMES[g.lg.id+'|'+g.id]=g;if(g.teams&&g.teams.some(t=>isFav(id,t.id)))all.push(g)})}catch(e){}
   try{const n=await getJ(API+lg.path+'/news?limit=30',120e3);(n.articles||[]).forEach(a=>{if((a.categories||[]).some(c=>c.teamId&&isFav(id,c.teamId)))news.push(a)})}catch(e){}}));
  S.live=all.some(g=>g.state==='in');all.sort((a,b)=>order[a.state]-order[b.state]||new Date(a.date)-new Date(b.date));
  h+=`<div class="chips">${S.favs.map(f=>`<span class="chip" data-t="${esc(f.lg)}|${esc(f.id)}">${f.logo?`<img src="${esc(f.logo)}" style="width:16px;height:16px;vertical-align:-3px"> `:''}${esc(f.name)}</span>`).join('')}</div><div class="sec">Games</div>`;
@@ -129,7 +132,7 @@ function tracker(g,s,cps){const st=(s.header.competitions[0].status||{}).type||{
 
 function detail(key){openSheet(()=>detailView(key))}
 let dTimer;async function detailView(key,soft){clearTimeout(dTimer);const me=STACK[STACK.length-1];let g=GAMES[key];if(!g)return;const box=document.getElementById('sheetIn');const y=document.querySelector('#sheet .in').scrollTop;
- if(soft){try{const gs=await scoreboard(g.lg,S.date);gs.forEach(x=>GAMES[x.lg.id+'|'+x.id]=x);g=GAMES[key]||g}catch(e){}}
+ if(soft){try{const gs=await scoreboardFav(g.lg,S.date);gs.forEach(x=>GAMES[x.lg.id+'|'+x.id]=x);g=GAMES[key]||g}catch(e){}}
  let h=top_()+`<div class="mut">${esc(g.lg.em+' '+g.lg.name)}</div>`;
 
  if(!soft)box.innerHTML=h+'<div class="empty">Loading…</div>';let s;try{s=await getJ(API+g.lg.path+'/summary?event='+g.ev.id,g.state==='in'?4e3:10e3)}catch(e){box.innerHTML=h+'<div class="empty">Couldn\'t load game details. Check your connection.</div>';return}
@@ -183,8 +186,9 @@ const TABS=[['mine','⭐','My Teams'],['scores','🏟️','Scores'],['news','�
 function header(){const chips=S.tab==='mine'?'<div class="chips"><button class="chip" data-srch="1">🔍 Players</button></div>':`<div class="chips" id="lgs"><button class="chip" data-srch="1">🔍 Players</button>${L.map(l=>`<button class="chip ${l.id===S.lg?'on':''}" data-lg="${l.id}">${l.em} ${esc(l.name)}</button>`).join('')}</div>`;
  const d=S.date?new Date(+S.date.slice(0,4),+S.date.slice(4,6)-1,+S.date.slice(6)):new Date();
  const bar=S.tab==='scores'?`<div class="bar"><button data-d="-1">‹</button><input type="date" id="dp" value="${d.toISOString?ymd(d).replace(/(\d{4})(\d\d)(\d\d)/,'$1-$2-$3'):''}"><button data-d="1">›</button><button data-d="0">Today</button></div>`:'';
- document.getElementById('hdr').innerHTML=chips+bar;document.getElementById('ttl').textContent=TABS.find(t=>t[0]===S.tab)[2];
- document.getElementById('nav').innerHTML=TABS.map(t=>`<button class="${t[0]===S.tab?'on':''}" data-tab="${t[0]}"><b>${t[1]}</b>${t[2]}</button>`).join('');const on=document.querySelector('#lgs .on');on&&on.scrollIntoView({inline:'center',block:'nearest'})}
+ const cfs=(S.tab==='scores'&&CONF[S.lg])?`<div class="chips" id="cfs">${CONF[S.lg].map(([id,name])=>`<button class="chip ${confSel(LG[S.lg])===id?'on':''}" data-cf="${id}">${esc(name)}</button>`).join('')}</div>`:'';
+ document.getElementById('hdr').innerHTML=chips+bar+cfs;document.getElementById('ttl').textContent=TABS.find(t=>t[0]===S.tab)[2];
+ document.getElementById('nav').innerHTML=TABS.map(t=>`<button class="${t[0]===S.tab?'on':''}" data-tab="${t[0]}"><b>${t[1]}</b>${t[2]}</button>`).join('');const on=document.querySelector('#lgs .on');on&&on.scrollIntoView({inline:'center',block:'nearest'});const onc=document.querySelector('#cfs .on');onc&&onc.scrollIntoView({inline:'center',block:'nearest'})}
 let seq=0;async function render(soft){const my=++seq;const app=document.getElementById('app');if(!soft){header();app.innerHTML='<div class="empty">Loading…</div>'}S.stale=null;
  let h;try{h=await({mine:vMine,scores:vScores,news:vNews,stand:vStand}[S.tab])()}catch(e){h=`<div class="empty">⚠️ Couldn't load data${navigator.onLine?'':' — you\'re offline'}.<br><br><button class="chip" onclick="render()">Retry</button></div>`;S.live=false}
  if(my!==seq)return;if(S.stale)h=`<div class="banner">${navigator.onLine?'Connection problem':'Offline'} — showing data from ${ago(S.stale)}</div>`+h;
@@ -193,15 +197,16 @@ let seq=0;async function render(soft){const my=++seq;const app=document.getEleme
 let timer;function schedule(){clearTimeout(timer);if(document.visibilityState!=='visible')return;const ms=(S.tab==='scores'||S.tab==='mine')?(S.live?20e3:120e3):300e3;timer=setTimeout(()=>render(true),ms)}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')render(true);else clearTimeout(timer)});
 addEventListener('online',()=>render(true));
-document.addEventListener('click',e=>{const t=e.target.closest('[data-sv],[data-src],[data-tab],[data-lg],[data-d],[data-g],[data-fav],[data-t],[data-p],[data-srch]');if(!t){if(e.target.id==='sheet')closeSheet();return}
+document.addEventListener('click',e=>{const t=e.target.closest('[data-sv],[data-src],[data-tab],[data-lg],[data-d],[data-cf],[data-g],[data-fav],[data-t],[data-p],[data-srch]');if(!t){if(e.target.id==='sheet')closeSheet();return}
  if(t.dataset.srch){openSheet(searchView);return}
  if(t.dataset.sv){S.sv=t.dataset.sv;ss('sv',S.sv);render(true)}else if(t.dataset.src!==undefined){S.src=t.dataset.src||null;render(true)}else if(t.dataset.tab){S.tab=t.dataset.tab;ss('tab',S.tab);scrollTo(0,0);render()}else if(t.dataset.lg){S.lg=t.dataset.lg;ss('lg',S.lg);S.date=null;render()}
+ else if(t.dataset.cf){S.conf=Object.assign({},S.conf,{[S.lg]:t.dataset.cf});ss('conf',S.conf);render()}
  else if(t.dataset.d){const v=+t.dataset.d;if(!v)S.date=null;else{const s=S.date||ymd(new Date());const d=new Date(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6)+v);S.date=ymd(d)}render()}
  else if(t.dataset.fav){const f=JSON.parse(t.dataset.fav);toggleFav(f.lg,f);t.textContent=isFav(f.lg,f.id)?'★':'☆';if(S.tab!=='stand'&&!STACK.length)render(true)}
  else if(t.dataset.t){const[a,b]=t.dataset.t.split('|');openSheet(()=>teamView(a,b))}
  else if(t.dataset.p){const[a,b]=t.dataset.p.split('|');openSheet(()=>playerView(a,b))}
  else if(t.dataset.g)detail(t.dataset.g)});
 document.addEventListener('change',e=>{if(e.target.id==='dp'&&e.target.value){S.date=e.target.value.replace(/-/g,'');render()}});
-if(!LG[S.lg])S.lg='nfl';S.favs=S.favs.filter(f=>LG[f.lg]);render();
+if(!LG[S.lg])S.lg='nfl';S.favs=S.favs.filter(f=>LG[f.lg]);if(!S.conf||typeof S.conf!=='object')S.conf={cfb:'top25',cbb:'top25'};render();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>
